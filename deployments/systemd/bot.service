@@ -1,0 +1,17 @@
+[Unit]
+Description=Telegram Bot
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=bot
+WorkingDirectory=/opt/megan-telegram-bot
+EnvironmentFile=/etc/environment
+ExecStart=/opt/megan-telegram-bot/bot
+Restart=always
+RestartSec=10
+
+Environment=CONFIG_PATH=/opt/megan-telegram-bot/configs/production.yaml
+
+[Install]
+WantedBy=multi-user.target

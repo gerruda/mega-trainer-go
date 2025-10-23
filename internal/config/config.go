@@ -73,25 +73,41 @@ type LoggingConfig struct {
 
 func Load(configPath string) (*Config, error) {
 	// Загружаем .env файл если существует
-	godotenv.Load()
+	err := godotenv.Load("env.env")
+	if err != nil {
+		return nil, err
+	}
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}
 
+	// Предварительная замена переменных окружения в YAML
+	expandedData := []byte(os.ExpandEnv(string(data)))
+
 	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	if err := yaml.Unmarshal(expandedData, &config); err != nil {
 		return nil, err
 	}
 
 	// Заменяем переменные окружения
-	config.expandEnvVars()
+	// config.expandEnvVars()
 
 	return &config, nil
 }
 
 func (c *Config) expandEnvVars() {
 	c.Telegram.BotToken = os.ExpandEnv(c.Telegram.BotToken)
+	c.Database.Postgres.Host = os.ExpandEnv(c.Database.Postgres.Host)
+	c.Database.Postgres.User = os.ExpandEnv(c.Database.Postgres.User)
 	c.Database.Postgres.Password = os.ExpandEnv(c.Database.Postgres.Password)
+	c.Database.Postgres.DBName = os.ExpandEnv(c.Database.Postgres.DBName)
+	c.Database.Postgres.SSLMode = os.ExpandEnv(c.Database.Postgres.SSLMode)
+	c.Database.Postgres.MigrationTable = os.ExpandEnv(c.Database.Postgres.MigrationTable)
+
+	c.Redis.Address = os.ExpandEnv(c.Redis.Address)
+	c.Redis.Password = os.ExpandEnv(c.Redis.Password)
+	c.Backup.StoragePath = os.ExpandEnv(c.Backup.StoragePath)
+	c.Logging.FilePath = os.ExpandEnv(c.Logging.FilePath)
 }
