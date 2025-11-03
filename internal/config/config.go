@@ -48,6 +48,7 @@ type RedisConfig struct {
 	Address  string `yaml:"address"`
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
+	PoolSize int    `yaml:"pool_size"`
 }
 
 type BackupConfig struct {
@@ -73,7 +74,7 @@ type LoggingConfig struct {
 
 func Load(configPath string) (*Config, error) {
 	// Загружаем .env файл если существует
-	err := godotenv.Load("env.env")
+	err := godotenv.Load(".env")
 	if err != nil {
 		return nil, err
 	}

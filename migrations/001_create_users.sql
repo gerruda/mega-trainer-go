@@ -1,29 +1,20 @@
--- +migrate Up
-CREATE TABLE users (
-                       id BIGSERIAL PRIMARY KEY,
-                       telegram_id BIGINT UNIQUE NOT NULL,
-                       username VARCHAR(255),
-                       first_name VARCHAR(255),
-                       last_name VARCHAR(255),
-                       language_code VARCHAR(10),
-                       is_bot BOOLEAN DEFAULT FALSE,
-                       role VARCHAR(50) DEFAULT 'user',
-                       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- up
+CREATE TABLE IF NOT EXISTS users (
+                                     id BIGINT PRIMARY KEY,
+                                     created_at TIMESTAMP NOT NULL
 );
 
-CREATE TABLE user_sessions (
-                               id BIGSERIAL PRIMARY KEY,
-                               user_id BIGINT REFERENCES users(telegram_id),
-                               state VARCHAR(100),
-                               data JSONB,
-                               created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                               updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+CREATE TABLE IF NOT EXISTS calculations (
+                                            id SERIAL PRIMARY KEY,
+                                            user_id BIGINT NOT NULL REFERENCES users(id),
+    type TEXT NOT NULL,
+    value DOUBLE PRECISION NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    metadata JSONB
+    );
 
-CREATE INDEX idx_users_telegram_id ON users(telegram_id);
-CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX ON calculations (user_id, type, created_at DESC);
 
--- +migrate Down
-DROP TABLE user_sessions;
+-- down
+DROP TABLE calculations;
 DROP TABLE users;
