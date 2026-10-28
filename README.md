@@ -137,13 +137,27 @@ make backup      # gzip-дамп PostgreSQL в ./backups + ротация
 
 ```bash
 make build            # бинарники в ./bin
-make test             # go test -race ./...
+make test             # unit-тесты с -race
+make test-integration # репозитории и миграции на живом PostgreSQL
+make test-e2e         # сквозной сценарий бота против fake Telegram API
+make test-all         # все уровни
 make cover            # покрытие
-make lint             # gofmt + go vet
+make lint             # gofmt + go vet + golangci-lint
 make fmt              # форматирование
 ```
 
-CI прогоняет `gofmt`, `go build`, `go vet` и `go test -race` для каждого PR.
+| Уровень | Что проверяет | Требования |
+|---|---|---|
+| unit | формулы, FSM, конфиг, cron, прокси | нет |
+| integration | репозитории и миграции, изоляция схем | `TEST_POSTGRES_DSN` |
+| e2e | весь пайплайн: fake Bot API → бот → PostgreSQL/Redis → ответы | `TEST_POSTGRES_*`, `TEST_REDIS_ADDR` |
+
+E2E-тесты поднимают фейковый Telegram Bot API (`httptest`), поэтому не требуют токена
+и доступа к `api.telegram.org`. Каждый прогон создаёт временную схему в PostgreSQL и
+удаляет её после теста — данные разработчика не затрагиваются.
+
+CI прогоняет `gofmt`, `go build`, `go vet`, `go test -race`, `golangci-lint`,
+а также integration- и e2e-джобы с сервисами PostgreSQL и Redis.
 
 Docker-образ собирается из `golang:${GO_VERSION}-alpine`, где `GO_VERSION` — версия из
 `toolchain` в `go.mod` (build-arg в `docker/Dockerfile`, держите их синхронно).
@@ -155,8 +169,8 @@ Docker-образ собирается из `golang:${GO_VERSION}-alpine`, гд�
       graceful shutdown, health/metrics, юнит-тесты
 - [x] **Фаза 2** — дневник измерений (`/measure`), `/chart`, `/history`, `/export`,
       автосохранение после `/bodyfat`, напоминания (`cmd/cron`), бэкапы
-- [~] **Фаза 3** — архитектура и ADR, тест-план, лицензия, CONTRIBUTING, CI, линтер;
-      осталось: интеграционные тесты репозиториев на PostgreSQL и релиз-тег
+- [x] **Фаза 3** — архитектура и ADR, тест-план, лицензия, CONTRIBUTING, CI,
+      golangci-lint, интеграционные и e2e-тесты; осталось: релизный тег
 
 ## Документация
 

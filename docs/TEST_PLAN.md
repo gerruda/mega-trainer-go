@@ -6,13 +6,30 @@
 
 ## 1. Уровни тестирования
 
-| Уровень | Что проверяет | Где |
-|---|---|---|
-| Unit | формулы, валидация, FSM-переходы, конфиг, cron, прокси-транспорт | `go test ./...` |
-| Integration | репозитории на живой PostgreSQL, миграции | план: testcontainers-go |
-| E2E / manual | реальный бот в Telegram, Docker-стек | чек-лист ниже |
+| Уровень | Что проверяет | Где | Запуск |
+|---|---|---|---|
+| Unit | формулы, валидация, FSM-переходы, конфиг, cron, прокси-транспорт | `internal/*` | `make test` |
+| Integration | репозитории, миграции, каскады, изоляция схем | `internal/storage/postgres/integration_test.go` (`-tags=integration`) | `make test-integration` |
+| E2E | весь пайплайн: fake Bot API → бот → PostgreSQL/Redis → ответы | `internal/app/e2e_test.go` (`-tags=e2e`) | `make test-e2e` |
+| Manual | реальный бот в Telegram, Docker-стек | чек-лист ниже | вручную |
 
-Запуск: `make test` (с `-race`), покрытие: `make cover`.
+Запуск: `make test-all`, покрытие: `make cover`.
+
+Интеграционные и e2e-тесты не трогают данные разработчика: каждый прогон создаёт
+временную схему PostgreSQL (`test_*` / `e2e_*`) и удаляет её после теста.
+
+### Автоматизация сценариев
+
+| Сценарий | Уровень | Тест |
+|---|---|---|
+| Формулы и валидация | unit | `internal/service/calculator_test.go` |
+| FSM `/water`, `/onerepmax`, `/tdee`, `/bodyfat`, `/measure` | unit | `internal/delivery/telegram/handler_test.go` |
+| `/chart`, `/history`, `/export` | unit | `internal/delivery/telegram/handler_test.go` |
+| Напоминания | unit | `internal/cron/reminders_test.go` |
+| Прокси-транспорт Bot API | unit | `internal/telegramapi/client_test.go` |
+| Upsert пользователя, измерения, сортировка, CASCADE | integration | `internal/storage/postgres/integration_test.go` |
+| Миграции up/down/идемпотентность | integration | `internal/storage/postgres/integration_test.go` |
+| Сквозной сценарий бота (6 сценариев) | e2e | `internal/app/e2e_test.go` |
 
 ## 2. Расчёты
 
@@ -72,6 +89,9 @@
 | E2E-06 | `/bodyfat` полный сценарий | результат + «Измерение сохранено» |
 | E2E-07 | Перезапустить бота в середине диалога | диалог продолжается с того же шага |
 | E2E-08 | Проверить `curl localhost:9090/readyz` | `{"status":"ready"}` |
+
+E2E-01…E2E-06 автоматизированы в `internal/app/e2e_test.go` против фейкового Bot API;
+E2E-07 и E2E-08 остаются ручными (рестарт процесса и реальный HTTP-порт).
 
 ## 6. Инфраструктура и отказоустойчивость
 

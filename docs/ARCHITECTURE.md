@@ -33,8 +33,9 @@ graph LR
         CFG[internal/config]
     end
 
-    BOT --> TG
-    BOT --> SVC
+    BOT --> APP[internal/app]
+    APP --> TG
+    APP --> SVC
     BOT --> PG
     BOT --> RDS
     BOT --> TAPI
@@ -58,7 +59,8 @@ graph LR
 | `internal/delivery/telegram` | разбор update, диалоги, клавиатуры, отправка | `domain`, `service`, `plot` |
 | `internal/telegramapi` | клиент Bot API, HTTP(S)-прокси, удаление webhook | `config` |
 | `internal/cron` | фоновые задачи (напоминания) | `domain` |
-| `cmd/*` | composition root: собрать зависимости и запустить | всё, но только здесь |
+| `internal/app` | composition root: собрать зависимости и запустить бота | всё |
+| `cmd/*` | тонкие entrypoints: конфиг, логгер, сигналы | `config`, `logger`, `app` |
 
 `pkg/` намеренно отсутствует: наружу ничего не публикуется, а импорт `internal`
 из `pkg` был бы нарушением направления зависимостей.

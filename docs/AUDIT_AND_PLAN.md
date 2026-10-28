@@ -451,6 +451,52 @@ go test -race ./...   OK
 - Релизный тег и прогон CI на GitHub.
 - Ручной E2E по `docs/TEST_PLAN.md` (раздел 5) на реальном боте.
 
+## B.10. Обновление: интеграционные и e2e-тесты, golangci-lint
+
+### Что добавлено
+
+- **Composition root вынесен в `internal/app`**: `cmd/bot` теперь только грузит конфиг,
+  логгер и обрабатывает сигналы; объектный граф собирается в одном месте и переиспользуется
+  e2e-тестами. Появились конфиг-опции `telegram.api_url` (подмена Bot API для тестов) и
+  `database.postgres.search_path` (изоляция схем).
+- **Интеграционные тесты** (`//go:build integration`, `internal/storage/postgres`):
+  миграции up/down/идемпотентность, `UserRepo.Upsert`, `MeasurementRepo` (сортировка, лимит,
+  NULL-поля, изоляция пользователей), `ON DELETE CASCADE`. Каждый тест работает в своей
+  временной схеме PostgreSQL, поэтому данные разработчика не затрагиваются.
+- **E2E-тесты** (`//go:build e2e`, `internal/app`): поднимается фейковый Telegram Bot API
+  (`httptest`), реальные PostgreSQL и Redis, полный цикл `app.Run` (getMe → deleteWebhook →
+  long polling). Сценарии: `/start`, диалог `/water` до результата, `/measure` ×2 →
+  `/chart` (проверяется PNG), `/history`, `/export` (проверяется CSV), устаревший callback,
+  неверный ввод. Проверяется graceful shutdown по отмене контекста.
+- **golangci-lint**: установлен v2.15.0 (Go 1.27), конфиг переведён на формат v2,
+  исправлены все 10 замечаний (gocritic appendAssign, shadowing `min/max`, unused-параметр,
+  `fmt.Fprintf` вместо `WriteString(Sprintf)`, unparam в тестовых хелперах, package-comment).
+  Джоба в CI теперь **блокирующая**.
+- **CI** дополнен джобами `integration` и `e2e` с сервисами PostgreSQL 16 и Redis 7;
+  Makefile получил `test-integration`, `test-e2e`, `test-all`, `lint` (gofmt + vet + линтер).
+- **Документация**: README (уровни тестов и требования), `docs/TEST_PLAN.md`
+  (матрица + карта автоматизации), AGENTS (DoD и правила тестов), ARCHITECTURE (internal/app).
+
+### Проверки (выполнены локально на Go 1.27.0)
+
+```text
+gofmt / go build / go vet                  OK
+go test -race ./...                        OK, покрытие unit 50.0 %
+golangci-lint run                          OK, 0 issues
+go test -tags=integration (PostgreSQL)     OK, 5 тестов (миграции, репозитории)
+go test -tags=e2e (fake Bot API + PG + RD) OK, 6 сценариев, graceful shutdown
+```
+
+Интеграционные и e2e-тесты прогонялись против локального PostgreSQL 16 и Redis 7
+(`make docker-up-dev`); в средах без инфраструктуры они корректно пропускаются
+(`t.Skip`), если не заданы `TEST_POSTGRES_DSN` / `TEST_POSTGRES_*` / `TEST_REDIS_ADDR`.
+
+### Что осталось
+
+- Прогон CI на GitHub после пуша ветки `renew`.
+- Ручной E2E в реальном Telegram (раздел 5 `docs/TEST_PLAN.md`) — за владельцем.
+- Релизный тег (`v1.0.0`) после приёмки MR.
+
 ---
 
 _Документ поддерживается в актуальном состоянии: при закрытии задач фазы отмечайте
