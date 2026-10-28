@@ -3,6 +3,7 @@ SHELL := /bin/bash
 BIN_DIR := bin
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 GO_LDFLAGS := -trimpath -ldflags "-s -w -X main.version=$(VERSION)"
+GOLANGCI_LINT ?= $(shell command -v golangci-lint 2>/dev/null || echo ./.tools/golangci-lint)
 
 .PHONY: help
 help: ## Print this help
@@ -22,15 +23,27 @@ run: build migrate-up ## Run migrations and start the bot locally
 test: ## Run unit tests with the race detector
 	go test -race ./...
 
+.PHONY: test-integration
+test-integration: ## Run repository/migration tests (requires TEST_POSTGRES_DSN)
+	go test -tags=integration -race -count=1 ./internal/storage/postgres/...
+
+.PHONY: test-e2e
+test-e2e: ## Run end-to-end tests (requires TEST_POSTGRES_* and TEST_REDIS_ADDR)
+	go test -tags=e2e -race -count=1 ./internal/app/...
+
+.PHONY: test-all
+test-all: test test-integration test-e2e ## Run every test level
+
 .PHONY: cover
 cover: ## Run tests and print the total coverage
 	go test -race -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | tail -n 1
 
 .PHONY: lint
-lint: ## Check formatting and run go vet
-	test -z "$$(gofmt -l .)"
+lint: ## Check formatting, vet and run golangci-lint
+	test -z "$$(gofmt -l ./cmd ./internal ./migrations)"
 	go vet ./...
+	$(GOLANGCI_LINT) run --timeout=5m
 
 .PHONY: fmt
 fmt: ## Format the code

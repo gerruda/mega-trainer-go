@@ -331,19 +331,22 @@ func newFullTestHandler(t *testing.T) (*Handler, *fakeSender, *fakeStateRepo, *f
 	return handler, sender, states, measurements
 }
 
-func messageUpdate(chatID, userID int64, text string) tgbotapi.Update {
+// testChatID is the private chat used by the message helpers.
+const testChatID int64 = 100
+
+func messageUpdate(userID int64, text string) tgbotapi.Update {
 	return tgbotapi.Update{
 		UpdateID: 1,
 		Message: &tgbotapi.Message{
 			MessageID: 1,
 			From:      &tgbotapi.User{ID: userID, UserName: "tester", FirstName: "Test"},
-			Chat:      &tgbotapi.Chat{ID: chatID, Type: "private"},
+			Chat:      &tgbotapi.Chat{ID: testChatID, Type: "private"},
 			Text:      text,
 		},
 	}
 }
 
-func callbackUpdate(chatID, userID int64, data string) tgbotapi.Update {
+func callbackUpdate(userID int64, data string) tgbotapi.Update {
 	return tgbotapi.Update{
 		UpdateID: 2,
 		CallbackQuery: &tgbotapi.CallbackQuery{
@@ -352,7 +355,7 @@ func callbackUpdate(chatID, userID int64, data string) tgbotapi.Update {
 			Data: data,
 			Message: &tgbotapi.Message{
 				MessageID: 10,
-				Chat:      &tgbotapi.Chat{ID: chatID, Type: "private"},
+				Chat:      &tgbotapi.Chat{ID: testChatID, Type: "private"},
 			},
 		},
 	}
@@ -378,9 +381,9 @@ func requireContains(t *testing.T, text, fragment string) {
 
 func TestWaterFlow(t *testing.T) {
 	handler, sender, states := newTestHandler(t)
-	const chatID, userID int64 = 100, 1001
+	const userID int64 = 1001
 
-	send(t, handler, messageUpdate(chatID, userID, "/water"))
+	send(t, handler, messageUpdate(userID, "/water"))
 	requireContains(t, sender.lastText(t), "Норма воды")
 
 	state := states.get(userID)
@@ -389,7 +392,7 @@ func TestWaterFlow(t *testing.T) {
 	}
 
 	// A comma decimal separator is accepted on purpose: mobile keyboards use it.
-	send(t, handler, messageUpdate(chatID, userID, "70,5"))
+	send(t, handler, messageUpdate(userID, "70,5"))
 
 	state = states.get(userID)
 	if state == nil || state.Step != 2 {
@@ -400,7 +403,7 @@ func TestWaterFlow(t *testing.T) {
 	}
 	requireContains(t, sender.lastText(t), "Выберите уровень активности")
 
-	send(t, handler, callbackUpdate(chatID, userID, callbackWaterActivity+":"+domain.WaterActivityMedium))
+	send(t, handler, callbackUpdate(userID, callbackWaterActivity+":"+domain.WaterActivityMedium))
 
 	// 70.5 kg * 0.03 l/kg * 1.2 = 2.538 -> "2.54" in the reply.
 	requireContains(t, sender.lastText(t), "2.54")
@@ -412,10 +415,10 @@ func TestWaterFlow(t *testing.T) {
 
 func TestWaterFlowRejectsInvalidInput(t *testing.T) {
 	handler, sender, states := newTestHandler(t)
-	const chatID, userID int64 = 100, 1002
+	const userID int64 = 1002
 
-	send(t, handler, messageUpdate(chatID, userID, "/water"))
-	send(t, handler, messageUpdate(chatID, userID, "not a number"))
+	send(t, handler, messageUpdate(userID, "/water"))
+	send(t, handler, messageUpdate(userID, "not a number"))
 
 	requireContains(t, sender.lastText(t), "Введите вес числом")
 
@@ -427,10 +430,10 @@ func TestWaterFlowRejectsInvalidInput(t *testing.T) {
 
 func TestOneRepMaxKeepsChosenFormula(t *testing.T) {
 	handler, sender, states := newTestHandler(t)
-	const chatID, userID int64 = 100, 1003
+	const userID int64 = 1003
 
-	send(t, handler, messageUpdate(chatID, userID, "/onerepmax"))
-	send(t, handler, callbackUpdate(chatID, userID, callbackOneRepFormula+":"+domain.FormulaBrzycki))
+	send(t, handler, messageUpdate(userID, "/onerepmax"))
+	send(t, handler, callbackUpdate(userID, callbackOneRepFormula+":"+domain.FormulaBrzycki))
 
 	state := states.get(userID)
 	if state == nil || state.Step != 2 {
@@ -440,8 +443,8 @@ func TestOneRepMaxKeepsChosenFormula(t *testing.T) {
 		t.Fatalf("formula = %q, want brzycki to survive the step change", state.Data[keyFormula])
 	}
 
-	send(t, handler, messageUpdate(chatID, userID, "100"))
-	send(t, handler, messageUpdate(chatID, userID, "5"))
+	send(t, handler, messageUpdate(userID, "100"))
+	send(t, handler, messageUpdate(userID, "5"))
 
 	// Brzycki: 100 * 36 / (37 - 5) = 112.5
 	requireContains(t, sender.lastText(t), "112.5")
@@ -453,15 +456,15 @@ func TestOneRepMaxKeepsChosenFormula(t *testing.T) {
 
 func TestTDEEFlow(t *testing.T) {
 	handler, sender, states := newTestHandler(t)
-	const chatID, userID int64 = 100, 1004
+	const userID int64 = 1004
 
-	send(t, handler, messageUpdate(chatID, userID, "/tdee"))
-	send(t, handler, callbackUpdate(chatID, userID, callbackGender+":"+domain.GenderMale))
-	send(t, handler, messageUpdate(chatID, userID, "30"))
-	send(t, handler, messageUpdate(chatID, userID, "80"))
-	send(t, handler, messageUpdate(chatID, userID, "180"))
-	send(t, handler, callbackUpdate(chatID, userID, callbackActivity+":"+domain.ActivityModerate))
-	send(t, handler, callbackUpdate(chatID, userID, callbackGoal+":"+domain.GoalMaintenance))
+	send(t, handler, messageUpdate(userID, "/tdee"))
+	send(t, handler, callbackUpdate(userID, callbackGender+":"+domain.GenderMale))
+	send(t, handler, messageUpdate(userID, "30"))
+	send(t, handler, messageUpdate(userID, "80"))
+	send(t, handler, messageUpdate(userID, "180"))
+	send(t, handler, callbackUpdate(userID, callbackActivity+":"+domain.ActivityModerate))
+	send(t, handler, callbackUpdate(userID, callbackGoal+":"+domain.GoalMaintenance))
 
 	// BMR 1780 kcal, TDEE 1780 * 1.55 = 2759 kcal.
 	requireContains(t, sender.lastText(t), "1780")
@@ -474,15 +477,15 @@ func TestTDEEFlow(t *testing.T) {
 
 func TestBodyFatFlowForMale(t *testing.T) {
 	handler, sender, states := newTestHandler(t)
-	const chatID, userID int64 = 100, 1005
+	const userID int64 = 1005
 
-	send(t, handler, messageUpdate(chatID, userID, "/bodyfat"))
-	send(t, handler, callbackUpdate(chatID, userID, callbackGender+":"+domain.GenderMale))
-	send(t, handler, messageUpdate(chatID, userID, "30"))
-	send(t, handler, messageUpdate(chatID, userID, "80"))
-	send(t, handler, messageUpdate(chatID, userID, "180"))
-	send(t, handler, messageUpdate(chatID, userID, "40"))
-	send(t, handler, messageUpdate(chatID, userID, "90"))
+	send(t, handler, messageUpdate(userID, "/bodyfat"))
+	send(t, handler, callbackUpdate(userID, callbackGender+":"+domain.GenderMale))
+	send(t, handler, messageUpdate(userID, "30"))
+	send(t, handler, messageUpdate(userID, "80"))
+	send(t, handler, messageUpdate(userID, "180"))
+	send(t, handler, messageUpdate(userID, "40"))
+	send(t, handler, messageUpdate(userID, "90"))
 
 	requireContains(t, sender.lastText(t), "18.4")
 
@@ -494,18 +497,18 @@ func TestBodyFatFlowForMale(t *testing.T) {
 func TestStaleCallbackIsReported(t *testing.T) {
 	handler, sender, _ := newTestHandler(t)
 
-	send(t, handler, callbackUpdate(100, 1006, callbackWaterActivity+":"+domain.WaterActivityLow))
+	send(t, handler, callbackUpdate(1006, callbackWaterActivity+":"+domain.WaterActivityLow))
 
 	requireContains(t, sender.lastText(t), "Сессия устарела")
 }
 
 func TestNewCommandResetsActiveDialog(t *testing.T) {
 	handler, _, states := newTestHandler(t)
-	const chatID, userID int64 = 100, 1007
+	const userID int64 = 1007
 
-	send(t, handler, messageUpdate(chatID, userID, "/water"))
-	send(t, handler, messageUpdate(chatID, userID, "70"))
-	send(t, handler, messageUpdate(chatID, userID, "/tdee"))
+	send(t, handler, messageUpdate(userID, "/water"))
+	send(t, handler, messageUpdate(userID, "70"))
+	send(t, handler, messageUpdate(userID, "/tdee"))
 
 	state := states.get(userID)
 	if state == nil || state.Command != commandTDEE || state.Step != 1 {
@@ -516,7 +519,7 @@ func TestNewCommandResetsActiveDialog(t *testing.T) {
 func TestGroupChatsAreIgnored(t *testing.T) {
 	handler, sender, states := newTestHandler(t)
 
-	update := messageUpdate(100, 1008, "/water")
+	update := messageUpdate(1008, "/water")
 	update.Message.Chat.Type = "group"
 
 	send(t, handler, update)
@@ -533,7 +536,7 @@ func TestSendFailureIsReturned(t *testing.T) {
 	handler, sender, _ := newTestHandler(t)
 	sender.err = context.DeadlineExceeded
 
-	err := handler.HandleUpdate(context.Background(), messageUpdate(100, 1009, "/start"))
+	err := handler.HandleUpdate(context.Background(), messageUpdate(1009, "/start"))
 	if err == nil {
 		t.Fatal("expected the send error to be returned")
 	}
@@ -541,12 +544,12 @@ func TestSendFailureIsReturned(t *testing.T) {
 
 func TestMeasureFlowRecordsWeight(t *testing.T) {
 	handler, sender, measurements := newMeasurementTestHandler(t)
-	const chatID, userID int64 = 100, 2001
+	const userID int64 = 2001
 
-	send(t, handler, messageUpdate(chatID, userID, "/measure"))
+	send(t, handler, messageUpdate(userID, "/measure"))
 	requireContains(t, sender.lastText(t), "Введите ваш вес")
 
-	send(t, handler, messageUpdate(chatID, userID, "70,5"))
+	send(t, handler, messageUpdate(userID, "70,5"))
 	requireContains(t, sender.lastText(t), "Записано")
 
 	if count := measurements.count(); count != 1 {
@@ -559,14 +562,14 @@ func TestMeasureFlowRecordsWeight(t *testing.T) {
 
 func TestChartSendsPhoto(t *testing.T) {
 	handler, sender, measurements := newMeasurementTestHandler(t)
-	const chatID, userID int64 = 100, 2002
+	const userID int64 = 2002
 
 	now := time.Now().UTC()
 	measurements.seed(userID, 72, now.Add(-48*time.Hour))
 	measurements.seed(userID, 71, now.Add(-24*time.Hour))
 	measurements.seed(userID, 70, now)
 
-	send(t, handler, messageUpdate(chatID, userID, "/chart"))
+	send(t, handler, messageUpdate(userID, "/chart"))
 
 	sent := sender.lastSent(t)
 	if sent.kind != "photo" {
@@ -581,23 +584,23 @@ func TestChartSendsPhoto(t *testing.T) {
 
 func TestChartRequiresTwoMeasurements(t *testing.T) {
 	handler, sender, measurements := newMeasurementTestHandler(t)
-	const chatID, userID int64 = 100, 2003
+	const userID int64 = 2003
 
 	measurements.seed(userID, 70, time.Now().UTC())
 
-	send(t, handler, messageUpdate(chatID, userID, "/chart"))
+	send(t, handler, messageUpdate(userID, "/chart"))
 	requireContains(t, sender.lastText(t), "минимум два измерения")
 }
 
 func TestHistoryShowsMeasurements(t *testing.T) {
 	handler, sender, measurements := newMeasurementTestHandler(t)
-	const chatID, userID int64 = 100, 2004
+	const userID int64 = 2004
 
 	now := time.Now().UTC()
 	measurements.seed(userID, 71, now.Add(-24*time.Hour))
 	measurements.seed(userID, 70, now)
 
-	send(t, handler, messageUpdate(chatID, userID, "/history"))
+	send(t, handler, messageUpdate(userID, "/history"))
 
 	text := sender.lastText(t)
 	requireContains(t, text, "Последние измерения")
@@ -606,13 +609,13 @@ func TestHistoryShowsMeasurements(t *testing.T) {
 
 func TestExportSendsCSV(t *testing.T) {
 	handler, sender, measurements := newMeasurementTestHandler(t)
-	const chatID, userID int64 = 100, 2005
+	const userID int64 = 2005
 
 	now := time.Now().UTC()
 	measurements.seed(userID, 72, now.Add(-24*time.Hour))
 	measurements.seed(userID, 70, now)
 
-	send(t, handler, messageUpdate(chatID, userID, "/export"))
+	send(t, handler, messageUpdate(userID, "/export"))
 
 	sent := sender.lastSent(t)
 	if sent.kind != "document" {
@@ -629,15 +632,15 @@ func TestExportSendsCSV(t *testing.T) {
 
 func TestBodyFatFlowSavesMeasurement(t *testing.T) {
 	handler, sender, measurements := newMeasurementTestHandler(t)
-	const chatID, userID int64 = 100, 2006
+	const userID int64 = 2006
 
-	send(t, handler, messageUpdate(chatID, userID, "/bodyfat"))
-	send(t, handler, callbackUpdate(chatID, userID, callbackGender+":"+domain.GenderMale))
-	send(t, handler, messageUpdate(chatID, userID, "30"))
-	send(t, handler, messageUpdate(chatID, userID, "80"))
-	send(t, handler, messageUpdate(chatID, userID, "180"))
-	send(t, handler, messageUpdate(chatID, userID, "40"))
-	send(t, handler, messageUpdate(chatID, userID, "90"))
+	send(t, handler, messageUpdate(userID, "/bodyfat"))
+	send(t, handler, callbackUpdate(userID, callbackGender+":"+domain.GenderMale))
+	send(t, handler, messageUpdate(userID, "30"))
+	send(t, handler, messageUpdate(userID, "80"))
+	send(t, handler, messageUpdate(userID, "180"))
+	send(t, handler, messageUpdate(userID, "40"))
+	send(t, handler, messageUpdate(userID, "90"))
 
 	requireContains(t, sender.lastText(t), "Измерение сохранено")
 

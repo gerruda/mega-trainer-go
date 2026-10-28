@@ -117,9 +117,9 @@ func (h *Handler) showHistory(ctx context.Context, chatID, userID int64) error {
 	for _, measurement := range measurements {
 		text.WriteString("• ")
 		text.WriteString(measurement.MeasuredAt.Local().Format(dateLayout))
-		text.WriteString(fmt.Sprintf(" — *%.1f кг*", measurement.WeightKG))
+		fmt.Fprintf(&text, " — *%.1f кг*", measurement.WeightKG)
 		if measurement.BodyFatPct != nil {
-			text.WriteString(fmt.Sprintf(", %.1f%% жира", *measurement.BodyFatPct))
+			fmt.Fprintf(&text, ", %.1f%% жира", *measurement.BodyFatPct)
 		}
 		text.WriteString("\n")
 	}

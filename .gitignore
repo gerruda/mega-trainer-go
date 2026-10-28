@@ -16,3 +16,9 @@ coverage.*
 
 # Local Go caches (used when the default module/build cache is read-only)
 .gocache/
+
+# Local tool binaries (golangci-lint etc.)
+.tools/
+
+# Harness/agent scratch data
+.dsh/

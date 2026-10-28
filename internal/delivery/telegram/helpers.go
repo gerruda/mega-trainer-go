@@ -107,7 +107,8 @@ func (h *Handler) remember(chatID int64, messageID int) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	history := append(h.history[chatID], messageID)
+	history := h.history[chatID]
+	history = append(history, messageID)
 	if len(history) > maxHistoryPerChat {
 		history = history[len(history)-maxHistoryPerChat:]
 	}
@@ -158,19 +159,19 @@ func (h *Handler) handleState(ctx context.Context, message *tgbotapi.Message, st
 
 // parseDecimal accepts both "70.5" and "70,5" and checks the bounds. Bots are
 // frequently used on mobile keyboards with a comma decimal separator.
-func parseDecimal(value string, min, max float64) (float64, bool) {
+func parseDecimal(value string, minimum, maximum float64) (float64, bool) {
 	cleaned := strings.ReplaceAll(strings.TrimSpace(value), ",", ".")
 	parsed, err := strconv.ParseFloat(cleaned, 64)
-	if err != nil || parsed < min || parsed > max {
+	if err != nil || parsed < minimum || parsed > maximum {
 		return 0, false
 	}
 	return parsed, true
 }
 
 // parseIntInRange parses an integer and checks the bounds.
-func parseIntInRange(value string, min, max int) (int, bool) {
+func parseIntInRange(value string, minimum, maximum int) (int, bool) {
 	parsed, err := strconv.Atoi(strings.TrimSpace(value))
-	if err != nil || parsed < min || parsed > max {
+	if err != nil || parsed < minimum || parsed > maximum {
 		return 0, false
 	}
 	return parsed, true
