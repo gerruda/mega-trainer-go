@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -55,7 +56,7 @@ func New(cfg config.TelegramConfig) (*tgbotapi.BotAPI, error) {
 		return nil, err
 	}
 
-	api, err := tgbotapi.NewBotAPIWithClient(cfg.BotToken, tgbotapi.APIEndpoint, client)
+	api, err := tgbotapi.NewBotAPIWithClient(cfg.BotToken, apiEndpoint(cfg.APIURL), client)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"authorize telegram bot (if api.telegram.org is blocked, set TELEGRAM_PROXY_URL, e.g. http://127.0.0.1:12334): %w",
@@ -69,6 +70,15 @@ func New(cfg config.TelegramConfig) (*tgbotapi.BotAPI, error) {
 	}
 
 	return api, nil
+}
+
+// apiEndpoint returns the Bot API URL template. The public endpoint is used
+// unless an explicit override is configured (used by end-to-end tests).
+func apiEndpoint(override string) string {
+	if override == "" {
+		return tgbotapi.APIEndpoint
+	}
+	return strings.TrimSuffix(override, "/") + "/bot%s/%s"
 }
 
 // ProxyHost returns the proxy host without credentials, so it can be logged.

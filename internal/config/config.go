@@ -1,3 +1,4 @@
+// Package config loads and validates the application configuration.
 package config
 
 import (
@@ -39,7 +40,10 @@ type TelegramConfig struct {
 	// ProxyURL routes Bot API requests through an HTTP(S) proxy. Required in
 	// networks where api.telegram.org is blocked, e.g. in Russia.
 	ProxyURL string `yaml:"proxy_url"`
-	Debug    bool   `yaml:"debug"`
+	// APIURL overrides the Bot API endpoint template. It is mainly used by
+	// end-to-end tests with a fake Telegram server; empty means the public API.
+	APIURL string `yaml:"api_url"`
+	Debug  bool   `yaml:"debug"`
 }
 
 // DatabaseConfig contains storage settings.
@@ -58,14 +62,20 @@ type PostgresConfig struct {
 	MaxConnections  int    `yaml:"max_connections"`
 	MaxIdle         int    `yaml:"max_idle"`
 	ConnMaxLifetime int    `yaml:"conn_max_lifetime_min"` // minutes
+	// SearchPath is an optional PostgreSQL search_path, used to isolate tests.
+	SearchPath string `yaml:"search_path"`
 }
 
 // DSN builds a lib/pq connection string.
 func (p PostgresConfig) DSN() string {
-	return fmt.Sprintf(
+	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		p.Host, p.Port, p.User, p.Password, p.DBName, p.SSLMode,
 	)
+	if p.SearchPath != "" {
+		dsn += " search_path=" + p.SearchPath
+	}
+	return dsn
 }
 
 // RedisConfig contains Redis connection settings.
@@ -215,6 +225,18 @@ func (c *Config) Validate() error {
 		add("telegram.bot_token is required (set the BOT_TOKEN environment variable)")
 	case !strings.Contains(c.Telegram.BotToken, ":"):
 		add("telegram.bot_token does not look like a Telegram token")
+	}
+
+	if c.Telegram.APIURL != "" {
+		parsed, err := url.Parse(c.Telegram.APIURL)
+		switch {
+		case err != nil:
+			add("telegram.api_url is not a valid URL: %v", err)
+		case parsed.Host == "":
+			add("telegram.api_url must include a host")
+		case parsed.Scheme != "http" && parsed.Scheme != "https":
+			add("telegram.api_url scheme must be http or https, got %q", parsed.Scheme)
+		}
 	}
 
 	if c.Telegram.ProxyURL != "" {

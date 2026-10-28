@@ -54,8 +54,23 @@ func NewMetrics(namespace string) *Metrics {
 		}),
 	}
 
-	prometheus.MustRegister(metrics.UpdatesProcessed, metrics.UpdatesFailed, metrics.UpdateDuration)
+	register(metrics.UpdatesProcessed)
+	register(metrics.UpdatesFailed)
+	register(metrics.UpdateDuration)
+
 	return metrics
+}
+
+// register adds a collector and tolerates repeated registration, so a process
+// (or a test) can build the metrics more than once without panicking.
+func register(collector prometheus.Collector) {
+	if err := prometheus.Register(collector); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if errors.As(err, &alreadyRegistered) {
+			return
+		}
+		panic(err)
+	}
 }
 
 // ReadyCheck is a dependency probe used by the readiness endpoint.
@@ -69,7 +84,7 @@ type Server struct {
 }
 
 // NewServer builds the monitoring server. The listener is only opened on Start.
-func NewServer(cfg config.MonitoringConfig, metrics *Metrics, log zerolog.Logger, checks ...ReadyCheck) *Server {
+func NewServer(cfg config.MonitoringConfig, log zerolog.Logger, checks ...ReadyCheck) *Server {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
