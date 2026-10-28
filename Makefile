@@ -34,6 +34,10 @@ test-e2e: ## Run end-to-end tests (requires TEST_POSTGRES_* and TEST_REDIS_ADDR)
 .PHONY: test-all
 test-all: test test-integration test-e2e ## Run every test level
 
+.PHONY: test-infra
+test-infra: ## Run integration + e2e using variables from .env (start docker-up-dev first)
+	./scripts/test-all.sh
+
 .PHONY: cover
 cover: ## Run tests and print the total coverage
 	go test -race -coverprofile=coverage.out ./...

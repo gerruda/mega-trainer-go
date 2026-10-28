@@ -140,9 +140,10 @@ make build            # бинарники в ./bin
 make test             # unit-тесты с -race
 make test-integration # репозитории и миграции на живом PostgreSQL
 make test-e2e         # сквозной сценарий бота против fake Telegram API
+make test-infra       # integration + e2e, параметры берутся из .env
 make test-all         # все уровни
 make cover            # покрытие
-make lint             # gofmt + go vet + golangci-lint
+make lint             # gofmt + go vet + golangci-lint (v2, из PATH или ./.tools)
 make fmt              # форматирование
 ```
 
