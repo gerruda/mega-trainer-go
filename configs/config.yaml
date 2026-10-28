@@ -1,0 +1,48 @@
+# Default configuration. Secrets are injected through the environment, so this
+# file is safe to commit. See .env.example for the required variables.
+app:
+  name: mega-trainer
+  environment: development
+  version: dev
+  # Maximum number of Telegram updates processed concurrently.
+  workers: 8
+
+telegram:
+  bot_token: ${BOT_TOKEN}
+  # Optional HTTP(S) proxy for networks where api.telegram.org is blocked.
+  # Example: http://127.0.0.1:12334
+  proxy_url: ${TELEGRAM_PROXY_URL}
+  debug: false
+
+database:
+  postgres:
+    host: ${POSTGRES_HOST}
+    port: 5432
+    user: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    dbname: ${POSTGRES_DB}
+    sslmode: disable
+    max_connections: 10
+    max_idle: 5
+    conn_max_lifetime_min: 30
+
+redis:
+  address: ${REDIS_ADDR}
+  password: ${REDIS_PASSWORD}
+  db: 0
+  pool_size: 10
+
+# Scheduled "log your weight" reminders sent by cmd/cron.
+reminders:
+  enabled: true
+  interval_hours: 24
+
+monitoring:
+  enabled: true
+  port: 9090
+
+logging:
+  level: ${LOG_LEVEL}
+  format: console
+  output: stdout
+  file_path: ""

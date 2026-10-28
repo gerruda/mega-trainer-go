@@ -1,17 +1,31 @@
 [Unit]
-Description=Telegram Bot
-After=network.target postgresql.service
+Description=Mega Trainer Telegram bot
+Documentation=https://github.com/gerruda/mega-trainer-go
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=bot
-WorkingDirectory=/opt/megan-telegram-bot
-EnvironmentFile=/etc/environment
-ExecStart=/opt/megan-telegram-bot/bot
-Restart=always
-RestartSec=10
+User=mega-trainer
+Group=mega-trainer
+WorkingDirectory=/opt/mega-trainer
+EnvironmentFile=/opt/mega-trainer/.env
+Environment=CONFIG_PATH=/opt/mega-trainer/configs/config.yaml
 
-Environment=CONFIG_PATH=/opt/megan-telegram-bot/configs/production.yaml
+# Apply pending migrations before every start; the command is idempotent.
+ExecStartPre=/opt/mega-trainer/migrate up
+ExecStart=/opt/mega-trainer/bot
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+
+# Minimal hardening for a long-running network service.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/mega-trainer
 
 [Install]
 WantedBy=multi-user.target

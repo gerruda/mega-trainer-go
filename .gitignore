@@ -1,3 +1,18 @@
-/*.env
-/configs/*
-/.idea/*
+# Environment files: real values stay local, the example is committed.
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+/bin/
+*.exe
+*.test
+*.out
+coverage.*
+
+# IDE
+.idea/
+.vscode/
+
+# Local Go caches (used when the default module/build cache is read-only)
+.gocache/
