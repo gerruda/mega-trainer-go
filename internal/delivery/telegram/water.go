@@ -3,72 +3,60 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"strconv"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"mega-trainer-go/internal/domain"
+	"mega-trainer-go/internal/service"
 )
 
-func (h *Handler) startWaterCalculation(ctx context.Context, message *tgbotapi.Message) error {
-	userID := message.From.ID
-	chatID := message.Chat.ID
-
-	// Устанавливаем состояние
-	if err := h.stateService.SetUserState(ctx, userID, "water", 1, nil); err != nil {
-		return h.sendError(chatID, "Ошибка начала расчета")
+func (h *Handler) startWater(ctx context.Context, chatID, userID int64) error {
+	if err := h.state.Start(ctx, userID, commandWater); err != nil {
+		return err
 	}
-
-	msg := tgbotapi.NewMessage(chatID, "💧 *Расчет нормы воды*\n\nВведите ваш вес в кг:")
-	msg.ParseMode = "Markdown"
-	sentMsg, _ := h.bot.Send(msg)
-	h.saveMessage(chatID, sentMsg.MessageID)
-
-	return nil
+	return h.send(chatID, promptWater)
 }
 
-func (h *Handler) handleWaterActivity(ctx context.Context, userID int64, chatID int64, activity string) error {
-	// Получаем данные из состояния
-	state, err := h.stateService.GetUserState(ctx, userID)
+func (h *Handler) handleWaterState(ctx context.Context, chatID, userID int64, message string, state *domain.UserState) error {
+	if state.Step != 1 {
+		return h.sendError(chatID, "Выберите уровень активности на клавиатуре или начните заново: /water")
+	}
+
+	weight, ok := parseDecimal(message, minWeightKG, maxWeightKG)
+	if !ok {
+		return h.sendError(chatID, fmt.Sprintf("Введите вес числом от %d до %d кг.", minWeightKG, maxWeightKG))
+	}
+
+	if err := h.state.SetData(ctx, userID, keyWeight, formatDecimal(weight)); err != nil {
+		return err
+	}
+	if err := h.state.SetStep(ctx, userID, 2); err != nil {
+		return err
+	}
+
+	return h.sendWithKeyboard(chatID, "Выберите уровень активности:", waterActivityKeyboard())
+}
+
+func (h *Handler) handleWaterActivity(ctx context.Context, chatID, userID int64, activity string) error {
+	state, err := h.activeState(ctx, chatID, userID)
 	if err != nil || state == nil {
-		return h.sendError(chatID, "Сессия устарела, начните заново")
+		return err
+	}
+	if state.Command != commandWater {
+		return h.sendError(chatID, "Эта кнопка уже неактуальна. Начните заново: /water")
 	}
 
-	weight, err := strconv.ParseFloat(state.Data["weight"], 64)
+	weight, ok := stateFloat(state, keyWeight)
+	if !ok {
+		return h.sendError(chatID, "Не хватает данных. Начните заново: /water")
+	}
+
+	result, err := service.CalculateWater(domain.WaterCalculation{Weight: weight, Activity: activity})
 	if err != nil {
-		return h.sendError(chatID, "Неверный формат веса")
+		h.log.Error().Err(err).Str("activity", activity).Msg("water calculation failed")
+		return h.sendError(chatID, "Не удалось выполнить расчёт. Начните заново: /water")
 	}
 
-	// Выполняем расчет
-	calculation := &domain.WaterCalculation{
-		Weight:   weight,
-		Activity: activity,
+	if err := h.send(chatID, formatWaterResult(result)); err != nil {
+		return err
 	}
-
-	result := h.calculatorService.CalculateWater(calculation)
-
-	// Отправляем результат
-	msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
-		"💧 *Результат расчета:*\n\n"+
-			"• Вес: %.1f кг\n"+
-			"• Уровень активности: %s\n"+
-			"• Рекомендуемая норма воды: *%.2f литров/день*\n\n"+
-			"Для нового расчета используйте команды из меню.",
-		result.Weight,
-		h.getActivityName(activity),
-		result.Result,
-	))
-	msg.ParseMode = "Markdown"
-	h.bot.Send(msg)
-
-	// Очищаем состояние
-	return h.stateService.ClearUserState(ctx, userID)
-}
-
-func (h *Handler) getActivityName(activity string) string {
-	names := map[string]string{
-		"low":    "Низкая",
-		"medium": "Средняя",
-		"high":   "Высокая",
-	}
-	return names[activity]
+	return h.state.Finish(ctx, userID)
 }

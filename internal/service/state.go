@@ -2,60 +2,63 @@ package service
 
 import (
 	"context"
-	"log"
+	"fmt"
 
 	"mega-trainer-go/internal/domain"
 )
 
+// StateService provides higher-level operations over the dialog state
+// repository: starting a dialog, advancing a step and collecting answers.
 type StateService struct {
-	stateRepo domain.StateRepository
+	repo domain.StateRepository
 }
 
-func NewStateService(stateRepo domain.StateRepository) *StateService {
-	return &StateService{
-		stateRepo: stateRepo,
-	}
+// NewStateService creates a StateService.
+func NewStateService(repo domain.StateRepository) *StateService {
+	return &StateService{repo: repo}
 }
 
-func (s *StateService) GetUserState(ctx context.Context, userID int64) (*domain.UserState, error) {
-	log.Printf("Getting state for user %d", userID)
-
-	state, err := s.stateRepo.GetState(ctx, userID)
+// Get returns the current dialog state or (nil, nil) when the user has none.
+func (s *StateService) Get(ctx context.Context, userID int64) (*domain.UserState, error) {
+	state, err := s.repo.GetState(ctx, userID)
 	if err != nil {
-		log.Printf("Error getting state for user %d: %v", userID, err)
-		return nil, err
+		return nil, fmt.Errorf("get user state: %w", err)
 	}
-
-	if state == nil {
-		log.Printf("No state found for user %d", userID)
-	} else {
-		log.Printf("Found state for user %d: command=%s, step=%d", userID, state.Command, state.Step)
-	}
-
 	return state, nil
 }
 
-func (s *StateService) SetUserState(ctx context.Context, userID int64, command string, step int, data map[string]string) error {
-	state := &domain.UserState{
+// Start begins a new dialog on step 1 and drops any previous answers.
+func (s *StateService) Start(ctx context.Context, userID int64, command string) error {
+	return s.save(ctx, &domain.UserState{
 		UserID:  userID,
 		Command: command,
-		Step:    step,
-		Data:    data,
-	}
-	return s.stateRepo.SetState(ctx, state)
+		Step:    1,
+		Data:    make(map[string]string),
+	})
 }
 
-func (s *StateService) ClearUserState(ctx context.Context, userID int64) error {
-	return s.stateRepo.ClearState(ctx, userID)
-}
-
-func (s *StateService) UpdateUserStateData(ctx context.Context, userID int64, key, value string) error {
-	state, err := s.stateRepo.GetState(ctx, userID)
+// SetStep moves the dialog to the next step and keeps the collected answers.
+func (s *StateService) SetStep(ctx context.Context, userID int64, step int) error {
+	state, err := s.Get(ctx, userID)
 	if err != nil {
 		return err
 	}
 	if state == nil {
-		return nil
+		return fmt.Errorf("advance state: %w", domain.ErrNotFound)
+	}
+
+	state.Step = step
+	return s.save(ctx, state)
+}
+
+// SetData stores a single answer and preserves the current step.
+func (s *StateService) SetData(ctx context.Context, userID int64, key, value string) error {
+	state, err := s.Get(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if state == nil {
+		return fmt.Errorf("set state data: %w", domain.ErrNotFound)
 	}
 
 	if state.Data == nil {
@@ -63,5 +66,20 @@ func (s *StateService) UpdateUserStateData(ctx context.Context, userID int64, ke
 	}
 	state.Data[key] = value
 
-	return s.stateRepo.SetState(ctx, state)
+	return s.save(ctx, state)
+}
+
+// Finish ends the dialog and removes the state.
+func (s *StateService) Finish(ctx context.Context, userID int64) error {
+	if err := s.repo.ClearState(ctx, userID); err != nil {
+		return fmt.Errorf("clear user state: %w", err)
+	}
+	return nil
+}
+
+func (s *StateService) save(ctx context.Context, state *domain.UserState) error {
+	if err := s.repo.SetState(ctx, state); err != nil {
+		return fmt.Errorf("save user state: %w", err)
+	}
+	return nil
 }
