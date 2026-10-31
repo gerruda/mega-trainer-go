@@ -1,128 +1,99 @@
+// Package bot runs the Telegram long-polling loop with a bounded worker pool.
 package bot
 
 import (
 	"context"
-	"log"
+	"sync"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"mega-trainer-go/internal/config"
+	"github.com/rs/zerolog"
+
 	"mega-trainer-go/internal/delivery/telegram"
-	"mega-trainer-go/internal/repository"
-	"mega-trainer-go/internal/service"
-	"mega-trainer-go/internal/storage/redis"
-	"mega-trainer-go/pkg/database"
-	"mega-trainer-go/pkg/logger"
-	"mega-trainer-go/pkg/monitoring"
+	"mega-trainer-go/internal/logger"
+	"mega-trainer-go/internal/monitoring"
 )
 
+// logComponent identifies this package in log messages.
+const logComponent = "bot"
+
+// Bot wires the Telegram API client with the update handler.
 type Bot struct {
-	cfg     *config.Config
-	botAPI  *tgbotapi.BotAPI
+	api     *tgbotapi.BotAPI
 	handler *telegram.Handler
+	log     zerolog.Logger
+	metrics *monitoring.Metrics
+	workers int
 }
 
-func NewBot(cfg *config.Config) (*Bot, error) {
-	botAPI, err := tgbotapi.NewBotAPI(cfg.Telegram.BotToken)
-	if err != nil {
-		return nil, err
+// New creates a Bot. workers bounds how many updates are processed at once.
+func New(api *tgbotapi.BotAPI, handler *telegram.Handler, log zerolog.Logger, metrics *monitoring.Metrics, workers int) *Bot {
+	if workers < 1 {
+		workers = 1
 	}
-
-	// Инициализация логгера
-	log := logger.New(&cfg.Logging)
-
-	// Инициализация метрик
-	metrics := monitoring.NewMetrics(cfg.App.Name)
-	if cfg.Monitoring.PrometheusEnabled {
-		metrics.StartServer(cfg.Monitoring.PrometheusPort)
-	}
-
-	// Подключение к БД
-	pg, err := database.NewPostgres(&cfg.Database.Postgres)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to connect to database")
-	}
-	defer pg.Close()
-
-	// Инициализация Redis
-	redisClient := repository.NewRedisClient(cfg.Redis)
-
-	// Проверяем соединение с Redis
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := repository.Ping(ctx, redisClient); err != nil {
-		log.Fatal().Err(err).Msgf("Failed to connect to Redis: %v", err)
-	}
-	log.Println("Successfully connected to Redis")
-
-	stateRepo := redis.NewRedisStateRepository(redisClient)
-
-	// Сервисы
-	calculatorService := service.NewCalculatorService()
-	stateService := service.NewStateService(stateRepo)
-
-	// Хендлер
-	handler := telegram.NewHandler(botAPI, calculatorService, stateService)
-
 	return &Bot{
-		cfg:     cfg,
-		botAPI:  botAPI,
+		api:     api,
 		handler: handler,
-	}, nil
-}
-
-func (b *Bot) Start(ctx context.Context) {
-	log.Printf("Authorized on account %s", b.botAPI.Self.UserName)
-
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
-
-	updates := b.botAPI.GetUpdatesChan(u)
-
-	for update := range updates {
-		go func(update tgbotapi.Update) {
-			if err := b.handler.HandleUpdate(ctx, update); err != nil {
-				log.Printf("Error handling update: %v", err)
-			}
-		}(update)
+		log:     log,
+		metrics: metrics,
+		workers: workers,
 	}
 }
 
-func (b *Bot) StartWebhooks(ctx context.Context) {
-	// // Устанавливаем webhook
-	// webhookURL := os.Getenv("WEBHOOK_URL") // например: https://yourdomain.com/webhook
-	// _, err = b.botAPI.SetWebhook(tgbotapi.NewWebhook(webhookURL))
-	// if err != nil {
-	// 	log.Fatal("SetWebhook:", err)
-	// }
-	//
-	// repo := postgres.NewRepository(db)
-	// handler := bot.NewHandler(botAPI, repo)
-	//
-	// // HTTP-хендлер для webhook
-	// http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
-	// 	bytes, err := io.ReadAll(r.Body)
-	// 	if err != nil {
-	// 		http.Error(w, err.Error(), http.StatusBadRequest)
-	// 		return
-	// 	}
-	//
-	// 	var update tgbotapi.Update
-	// 	if err := json.Unmarshal(bytes, &update); err != nil {
-	// 		http.Error(w, err.Error(), http.StatusBadRequest)
-	// 		return
-	// 	}
-	//
-	// 	handler.HandleUpdate(ctx, update)
-	// })
-	//
-	// port := os.Getenv("PORT")
-	// if port == "" {
-	// 	port = "8080"
-	// }
-	//
-	// log.Printf("Webhook установлен на %s", webhookURL)
-	// log.Printf("Сервер запущен на :%s", port)
-	//
+// Run polls Telegram until the context is cancelled, then stops polling and
+// waits for the in-flight updates to finish.
+func (b *Bot) Run(ctx context.Context) error {
+	updateConfig := tgbotapi.NewUpdate(0)
+	updateConfig.Timeout = 60
+	updates := b.api.GetUpdatesChan(updateConfig)
+
+	sem := make(chan struct{}, b.workers)
+	var wg sync.WaitGroup
+
+	defer func() {
+		// Closing the updates channel is the API's way of stopping the poller.
+		b.api.StopReceivingUpdates()
+		wg.Wait()
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case update, ok := <-updates:
+			if !ok {
+				return nil
+			}
+
+			// Acquire a worker slot or stop waiting when shutting down.
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				return nil
+			}
+
+			wg.Add(1)
+			go func(update tgbotapi.Update) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				b.process(ctx, update)
+			}(update)
+		}
+	}
+}
+
+func (b *Bot) process(ctx context.Context, update tgbotapi.Update) {
+	start := time.Now()
+
+	if err := b.handler.HandleUpdate(ctx, update); err != nil {
+		b.metrics.UpdatesFailed.Inc()
+		b.log.Error().
+			Err(err).
+			Int("update_id", update.UpdateID).
+			Msg(logger.Source(logComponent, "process") + "не удалось обработать обновление Telegram")
+		return
+	}
+
+	b.metrics.UpdatesProcessed.Inc()
+	b.metrics.UpdateDuration.Observe(time.Since(start).Seconds())
 }

@@ -1,49 +1,84 @@
+// Package config loads and validates the application configuration.
 package config
 
 import (
+	"errors"
+	"fmt"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
+// Config is the root of the application configuration. It is loaded from a YAML
+// file (with ${ENV_VAR} expansion) and validated before use, so a misconfigured
+// process fails fast with an actionable error instead of panicking later.
 type Config struct {
 	App        AppConfig        `yaml:"app"`
 	Telegram   TelegramConfig   `yaml:"telegram"`
 	Database   DatabaseConfig   `yaml:"database"`
 	Redis      RedisConfig      `yaml:"redis"`
-	Backup     BackupConfig     `yaml:"backup"`
+	Reminders  RemindersConfig  `yaml:"reminders"`
 	Monitoring MonitoringConfig `yaml:"monitoring"`
 	Logging    LoggingConfig    `yaml:"logging"`
 }
 
+// AppConfig contains process-wide settings.
 type AppConfig struct {
 	Name        string `yaml:"name"`
 	Environment string `yaml:"environment"`
 	Version     string `yaml:"version"`
+	// Workers limits how many Telegram updates are processed concurrently.
+	Workers int `yaml:"workers"`
 }
 
+// TelegramConfig contains Telegram Bot API settings.
 type TelegramConfig struct {
-	BotToken   string `yaml:"bot_token"`
-	WebhookURL string `yaml:"webhook_url"`
-	Debug      bool   `yaml:"debug"`
+	BotToken string `yaml:"bot_token"`
+	// ProxyURL routes Bot API requests through an HTTP(S) proxy. Required in
+	// networks where api.telegram.org is blocked, e.g. in Russia.
+	ProxyURL string `yaml:"proxy_url"`
+	// APIURL overrides the Bot API endpoint template. It is mainly used by
+	// end-to-end tests with a fake Telegram server; empty means the public API.
+	APIURL string `yaml:"api_url"`
+	Debug  bool   `yaml:"debug"`
 }
 
+// DatabaseConfig contains storage settings.
 type DatabaseConfig struct {
 	Postgres PostgresConfig `yaml:"postgres"`
 }
 
+// PostgresConfig contains PostgreSQL connection settings.
 type PostgresConfig struct {
-	Host           string `yaml:"host"`
-	Port           int    `yaml:"port"`
-	User           string `yaml:"user"`
-	Password       string `yaml:"password"`
-	DBName         string `yaml:"dbname"`
-	SSLMode        string `yaml:"sslmode"`
-	MaxConnections int    `yaml:"max_connections"`
-	MigrationTable string `yaml:"migration_table"`
+	Host            string `yaml:"host"`
+	Port            int    `yaml:"port"`
+	User            string `yaml:"user"`
+	Password        string `yaml:"password"`
+	DBName          string `yaml:"dbname"`
+	SSLMode         string `yaml:"sslmode"`
+	MaxConnections  int    `yaml:"max_connections"`
+	MaxIdle         int    `yaml:"max_idle"`
+	ConnMaxLifetime int    `yaml:"conn_max_lifetime_min"` // minutes
+	// SearchPath is an optional PostgreSQL search_path, used to isolate tests.
+	SearchPath string `yaml:"search_path"`
 }
 
+// DSN builds a lib/pq connection string.
+func (p PostgresConfig) DSN() string {
+	dsn := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		p.Host, p.Port, p.User, p.Password, p.DBName, p.SSLMode,
+	)
+	if p.SearchPath != "" {
+		dsn += " search_path=" + p.SearchPath
+	}
+	return dsn
+}
+
+// RedisConfig contains Redis connection settings.
 type RedisConfig struct {
 	Address  string `yaml:"address"`
 	Password string `yaml:"password"`
@@ -51,64 +86,217 @@ type RedisConfig struct {
 	PoolSize int    `yaml:"pool_size"`
 }
 
-type BackupConfig struct {
-	Enabled       bool   `yaml:"enabled"`
-	Schedule      string `yaml:"schedule"`
-	RetentionDays int    `yaml:"retention_days"`
-	StoragePath   string `yaml:"storage_path"`
+// RemindersConfig configures the scheduled "log your weight" reminders.
+type RemindersConfig struct {
+	Enabled       bool `yaml:"enabled"`
+	IntervalHours int  `yaml:"interval_hours"`
 }
 
+// MonitoringConfig contains the health/metrics HTTP server settings.
 type MonitoringConfig struct {
-	PrometheusEnabled bool   `yaml:"prometheus_enabled"`
-	PrometheusPort    int    `yaml:"prometheus_port"`
-	HealthCheckPort   int    `yaml:"health_check_port"`
-	LogLevel          string `yaml:"log_level"`
+	Enabled bool `yaml:"enabled"`
+	Port    int  `yaml:"port"`
 }
 
+// LoggingConfig contains logging settings.
 type LoggingConfig struct {
 	Level    string `yaml:"level"`
 	Format   string `yaml:"format"`
-	Output   string `yaml:"output"`
+	Output   string `yaml:"output"` // stdout | file | both
 	FilePath string `yaml:"file_path"`
 }
 
-func Load(configPath string) (*Config, error) {
-	// Загружаем .env файл если существует
-	err := godotenv.Load(".env")
+// Load reads the YAML config file, expands ${ENV_VAR} references, applies
+// defaults and validates the whole configuration.
+//
+// A missing .env file is not an error: local development may use a real
+// environment, and containers never have one.
+func Load(path string) (*Config, error) {
+	cfg, err := load(path)
 	if err != nil {
 		return nil, err
 	}
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-
-	// Предварительная замена переменных окружения в YAML
-	expandedData := []byte(os.ExpandEnv(string(data)))
-
-	var config Config
-	if err := yaml.Unmarshal(expandedData, &config); err != nil {
-		return nil, err
-	}
-
-	// Заменяем переменные окружения
-	// config.expandEnvVars()
-
-	return &config, nil
+	return cfg, nil
 }
 
-func (c *Config) expandEnvVars() {
-	c.Telegram.BotToken = os.ExpandEnv(c.Telegram.BotToken)
-	c.Database.Postgres.Host = os.ExpandEnv(c.Database.Postgres.Host)
-	c.Database.Postgres.User = os.ExpandEnv(c.Database.Postgres.User)
-	c.Database.Postgres.Password = os.ExpandEnv(c.Database.Postgres.Password)
-	c.Database.Postgres.DBName = os.ExpandEnv(c.Database.Postgres.DBName)
-	c.Database.Postgres.SSLMode = os.ExpandEnv(c.Database.Postgres.SSLMode)
-	c.Database.Postgres.MigrationTable = os.ExpandEnv(c.Database.Postgres.MigrationTable)
+// LoadForMigration loads the configuration needed to run schema migrations. It
+// validates the database settings only, so the migration command works without
+// a Telegram token.
+func LoadForMigration(path string) (*Config, error) {
+	cfg, err := load(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.ValidateDatabase(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
 
-	c.Redis.Address = os.ExpandEnv(c.Redis.Address)
-	c.Redis.Password = os.ExpandEnv(c.Redis.Password)
-	c.Backup.StoragePath = os.ExpandEnv(c.Backup.StoragePath)
-	c.Logging.FilePath = os.ExpandEnv(c.Logging.FilePath)
+func load(path string) (*Config, error) {
+	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("load .env: %w", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read config file %q (set CONFIG_PATH to override): %w", path, err)
+	}
+
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(os.ExpandEnv(string(raw))), &cfg); err != nil {
+		return nil, fmt.Errorf("parse config file %q: %w", path, err)
+	}
+
+	cfg.applyDefaults()
+
+	return &cfg, nil
+}
+
+func (c *Config) applyDefaults() {
+	if c.App.Name == "" {
+		c.App.Name = "mega-trainer"
+	}
+	if c.App.Environment == "" {
+		c.App.Environment = "development"
+	}
+	if c.App.Version == "" {
+		c.App.Version = "dev"
+	}
+	if c.App.Workers <= 0 {
+		c.App.Workers = 8
+	}
+
+	if c.Database.Postgres.Port == 0 {
+		c.Database.Postgres.Port = 5432
+	}
+	if c.Database.Postgres.SSLMode == "" {
+		c.Database.Postgres.SSLMode = "disable"
+	}
+	if c.Database.Postgres.MaxConnections <= 0 {
+		c.Database.Postgres.MaxConnections = 10
+	}
+	if c.Database.Postgres.MaxIdle <= 0 {
+		c.Database.Postgres.MaxIdle = 5
+	}
+	if c.Database.Postgres.ConnMaxLifetime <= 0 {
+		c.Database.Postgres.ConnMaxLifetime = 30
+	}
+
+	if c.Redis.DB < 0 {
+		c.Redis.DB = 0
+	}
+	if c.Redis.PoolSize <= 0 {
+		c.Redis.PoolSize = 10
+	}
+
+	if c.Reminders.IntervalHours <= 0 {
+		c.Reminders.IntervalHours = 24
+	}
+
+	if c.Monitoring.Port == 0 {
+		c.Monitoring.Port = 9090
+	}
+
+	if c.Logging.Level == "" {
+		c.Logging.Level = "info"
+	}
+	if c.Logging.Format == "" {
+		c.Logging.Format = "console"
+	}
+	if c.Logging.Output == "" {
+		c.Logging.Output = "stdout"
+	}
+}
+
+// Validate reports every missing or invalid required setting at once.
+func (c *Config) Validate() error {
+	var problems []string
+
+	add := func(format string, args ...any) {
+		problems = append(problems, fmt.Sprintf(format, args...))
+	}
+
+	switch {
+	case c.Telegram.BotToken == "":
+		add("telegram.bot_token is required (set the BOT_TOKEN environment variable)")
+	case !strings.Contains(c.Telegram.BotToken, ":"):
+		add("telegram.bot_token does not look like a Telegram token")
+	}
+
+	if c.Telegram.APIURL != "" {
+		parsed, err := url.Parse(c.Telegram.APIURL)
+		switch {
+		case err != nil:
+			add("telegram.api_url is not a valid URL: %v", err)
+		case parsed.Host == "":
+			add("telegram.api_url must include a host")
+		case parsed.Scheme != "http" && parsed.Scheme != "https":
+			add("telegram.api_url scheme must be http or https, got %q", parsed.Scheme)
+		}
+	}
+
+	if c.Telegram.ProxyURL != "" {
+		parsed, err := url.Parse(c.Telegram.ProxyURL)
+		switch {
+		case err != nil:
+			add("telegram.proxy_url is not a valid URL: %v", err)
+		case parsed.Host == "":
+			add("telegram.proxy_url must include a host, e.g. http://127.0.0.1:12334")
+		case parsed.Scheme != "http" && parsed.Scheme != "https":
+			add("telegram.proxy_url scheme must be http or https, got %q", parsed.Scheme)
+		}
+	}
+
+	if c.Redis.Address == "" {
+		add("redis.address is required (set REDIS_ADDR)")
+	}
+
+	if c.Monitoring.Enabled && (c.Monitoring.Port < 1 || c.Monitoring.Port > 65535) {
+		add("monitoring.port must be a valid TCP port, got %d", c.Monitoring.Port)
+	}
+
+	if c.Reminders.Enabled && c.Reminders.IntervalHours < 1 {
+		add("reminders.interval_hours must be at least 1, got %d", c.Reminders.IntervalHours)
+	}
+
+	problems = append(problems, c.databaseProblems()...)
+
+	return problemsError(problems)
+}
+
+// ValidateDatabase validates the PostgreSQL settings only.
+func (c *Config) ValidateDatabase() error {
+	return problemsError(c.databaseProblems())
+}
+
+func (c *Config) databaseProblems() []string {
+	var problems []string
+
+	switch {
+	case c.Database.Postgres.Host == "":
+		problems = append(problems, "database.postgres.host is required (set POSTGRES_HOST)")
+	case c.Database.Postgres.User == "":
+		problems = append(problems, "database.postgres.user is required (set POSTGRES_USER)")
+	case c.Database.Postgres.DBName == "":
+		problems = append(problems, "database.postgres.dbname is required (set POSTGRES_DB)")
+	}
+
+	return problems
+}
+
+func problemsError(problems []string) error {
+	if len(problems) == 0 {
+		return nil
+	}
+
+	// errors.Join keeps every problem visible in a single startup error.
+	errs := make([]error, 0, len(problems))
+	for _, p := range problems {
+		errs = append(errs, errors.New(p))
+	}
+	return fmt.Errorf("invalid configuration: %w", errors.Join(errs...))
 }

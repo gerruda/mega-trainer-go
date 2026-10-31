@@ -1,0 +1,30 @@
+[Unit]
+Description=Mega Trainer reminder scheduler
+Documentation=https://github.com/gerruda/mega-trainer-go
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mega-trainer
+Group=mega-trainer
+WorkingDirectory=/opt/mega-trainer
+EnvironmentFile=/opt/mega-trainer/.env
+Environment=CONFIG_PATH=/opt/mega-trainer/configs/config.yaml
+
+# Reminders are sent on a timer inside the process; the scheduler must be a
+# long-running unit, not a oneshot.
+ExecStart=/opt/mega-trainer/cron
+
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/mega-trainer
+
+[Install]
+WantedBy=multi-user.target

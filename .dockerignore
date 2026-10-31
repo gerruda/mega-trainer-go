@@ -1,0 +1,14 @@
+.git
+.gitignore
+.github
+.idea
+.vscode
+bin
+*.out
+coverage.*
+.env
+.env.*
+!.env.example
+.gocache
+docs
+README.md

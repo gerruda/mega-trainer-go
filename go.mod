@@ -1,8 +1,8 @@
 module mega-trainer-go
 
-go 1.24.0
+go 1.27.0
 
-toolchain go1.24.3
+toolchain go1.27
 
 require (
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1

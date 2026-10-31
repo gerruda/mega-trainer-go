@@ -1,3 +1,31 @@
-/*.env
-/configs/*
-/.idea/*
+# Environment files: real values stay local, the example is committed.
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+/bin/
+*.exe
+*.test
+*.out
+coverage.*
+
+# IDE
+.idea/
+.vscode/
+
+# Local Go caches (used when the default module/build cache is read-only)
+.gocache/
+
+# Local tool binaries (golangci-lint etc.)
+.tools/
+
+# Harness/agent scratch data
+.dsh/
+
+# Local editor/agent scratch data
+.continue/
+
+# Локальные инструкции для агентов (не публикуются)
+AGENTS.md
+CONTRIBUTING.md
