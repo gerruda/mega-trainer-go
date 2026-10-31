@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"mega-trainer-go/internal/domain"
+	"mega-trainer-go/internal/logger"
 	"mega-trainer-go/internal/service"
 )
 
@@ -88,7 +89,7 @@ func (h *Handler) calculateAndShowOneRepMax(ctx context.Context, chatID, userID 
 		Formula: formula,
 	})
 	if err != nil {
-		h.log.Error().Err(err).Msg("one rep max calculation failed")
+		h.log.Error().Err(err).Msg(logger.Source(logComponent, "calculateAndShowOneRepMax") + "не удалось рассчитать одноповторный максимум")
 		return h.sendError(chatID, "Не удалось выполнить расчёт. Начните заново: /onerepmax")
 	}
 

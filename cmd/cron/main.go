@@ -19,6 +19,9 @@ import (
 	"mega-trainer-go/internal/telegramapi"
 )
 
+// logComponent identifies this package in log messages.
+const logComponent = "cmd/cron"
+
 // version is injected at build time.
 var version = "dev"
 
@@ -41,7 +44,7 @@ func run() error {
 	}
 
 	if !cfg.Reminders.Enabled {
-		log.Info().Msg("reminders are disabled, nothing to do")
+		log.Info().Msg(logger.Source(logComponent, "run") + "напоминания отключены, работа завершена")
 		return nil
 	}
 
@@ -54,7 +57,7 @@ func run() error {
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.Error().Err(err).Msg("failed to close database")
+			log.Error().Err(err).Msg(logger.Source(logComponent, "run") + "не удалось закрыть соединение с базой данных")
 		}
 	}()
 
@@ -73,7 +76,7 @@ func run() error {
 	log.Info().
 		Str("version", version).
 		Int("interval_hours", cfg.Reminders.IntervalHours).
-		Msg("cron started")
+		Msg(logger.Source(logComponent, "run") + "планировщик запущен")
 
 	return runner.Run(ctx)
 }

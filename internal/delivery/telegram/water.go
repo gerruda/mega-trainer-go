@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"mega-trainer-go/internal/domain"
+	"mega-trainer-go/internal/logger"
 	"mega-trainer-go/internal/service"
 )
 
@@ -51,7 +52,7 @@ func (h *Handler) handleWaterActivity(ctx context.Context, chatID, userID int64,
 
 	result, err := service.CalculateWater(domain.WaterCalculation{Weight: weight, Activity: activity})
 	if err != nil {
-		h.log.Error().Err(err).Str("activity", activity).Msg("water calculation failed")
+		h.log.Error().Err(err).Str("activity", activity).Msg(logger.Source(logComponent, "handleWaterActivity") + "не удалось рассчитать норму воды")
 		return h.sendError(chatID, "Не удалось выполнить расчёт. Начните заново: /water")
 	}
 

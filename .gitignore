@@ -22,3 +22,6 @@ coverage.*
 
 # Harness/agent scratch data
 .dsh/
+
+# Local editor/agent scratch data
+.continue/

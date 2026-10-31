@@ -9,6 +9,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"mega-trainer-go/internal/domain"
+	"mega-trainer-go/internal/logger"
 )
 
 // Validation bounds shared by all dialogs. They also protect the formulas from
@@ -127,7 +128,7 @@ func (h *Handler) cleanupMessages(chatID int64) {
 	for _, messageID := range messageIDs {
 		if _, err := h.sender.Request(tgbotapi.NewDeleteMessage(chatID, messageID)); err != nil {
 			h.log.Debug().Err(err).Int64("chat_id", chatID).Int("message_id", messageID).
-				Msg("failed to delete message")
+				Msg(logger.Source(logComponent, "cleanupMessages") + "не удалось удалить сообщение бота")
 		}
 	}
 }

@@ -10,7 +10,11 @@ import (
 	"github.com/rs/zerolog"
 
 	"mega-trainer-go/internal/domain"
+	"mega-trainer-go/internal/logger"
 )
+
+// logComponent identifies this package in log messages.
+const logComponent = "cron"
 
 // reminderText is sent to every active user by the reminder job.
 const reminderText = "⚖️ Напоминание: запишите текущий вес — /measure\n📈 Динамика: /chart"
@@ -46,7 +50,7 @@ func New(users domain.UserRepository, sender MessageSender, log zerolog.Logger, 
 
 // Run sends reminders every interval until the context is cancelled.
 func (r *Runner) Run(ctx context.Context) error {
-	r.log.Info().Dur("interval", r.interval).Msg("reminder scheduler started")
+	r.log.Info().Dur("interval", r.interval).Msg(logger.Source(logComponent, "Run") + "планировщик напоминаний запущен")
 
 	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()
@@ -54,12 +58,12 @@ func (r *Runner) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			r.log.Info().Msg("reminder scheduler stopped")
+			r.log.Info().Msg(logger.Source(logComponent, "Run") + "планировщик напоминаний остановлен (контекст завершён)")
 			return nil
 		case <-ticker.C:
 			if err := r.Once(ctx); err != nil {
 				// A failed run must not kill the scheduler: the next tick retries.
-				r.log.Error().Err(err).Msg("reminder run failed")
+				r.log.Error().Err(err).Msg(logger.Source(logComponent, "Run") + "не удалось выполнить рассылку напоминаний")
 			}
 		}
 	}
@@ -77,12 +81,12 @@ func (r *Runner) Once(ctx context.Context) error {
 	for _, user := range users {
 		if err := r.sender.SendMessage(user.TelegramID, reminderText); err != nil {
 			failed++
-			r.log.Warn().Err(err).Int64("telegram_id", user.TelegramID).Msg("failed to send reminder")
+			r.log.Warn().Err(err).Int64("telegram_id", user.TelegramID).Msg(logger.Source(logComponent, "Once") + "не удалось отправить напоминание")
 			continue
 		}
 		sent++
 	}
 
-	r.log.Info().Int("sent", sent).Int("failed", failed).Int("users", len(users)).Msg("reminders sent")
+	r.log.Info().Int("sent", sent).Int("failed", failed).Int("users", len(users)).Msg(logger.Source(logComponent, "Once") + "рассылка напоминаний завершена")
 	return nil
 }

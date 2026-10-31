@@ -1,4 +1,5 @@
-// Package logger builds the application's structured logger (zerolog).
+// Package logger builds the application's structured logger (zerolog) and
+// defines the project-wide log message format.
 package logger
 
 import (
@@ -12,6 +13,14 @@ import (
 
 	"mega-trainer-go/internal/config"
 )
+
+// Source builds a log message prefix that points to the code location, for
+// example "[delivery/telegram:HandleUpdate] ". The message after the prefix is
+// written in Russian and describes what happened; optional context goes in
+// parentheses at the end.
+func Source(component, function string) string {
+	return "[" + component + ":" + function + "] "
+}
 
 // New returns a configured logger. It never panics: a file that cannot be
 // opened is reported as an error so the caller (main) can decide what to do.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"mega-trainer-go/internal/domain"
+	"mega-trainer-go/internal/logger"
 	"mega-trainer-go/internal/service"
 )
 
@@ -164,7 +165,7 @@ func (h *Handler) calculateAndShowBodyFat(ctx context.Context, chatID, userID in
 		if errors.Is(err, domain.ErrValidation) {
 			return h.sendError(chatID, "Проверьте измерения: обхват талии должен быть больше обхвата шеи. Начните заново: /bodyfat")
 		}
-		h.log.Error().Err(err).Msg("body fat calculation failed")
+		h.log.Error().Err(err).Msg(logger.Source(logComponent, "calculateAndShowBodyFat") + "не удалось рассчитать процент жира")
 		return h.sendError(chatID, "Не удалось выполнить расчёт. Начните заново: /bodyfat")
 	}
 

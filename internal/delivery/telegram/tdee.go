@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"mega-trainer-go/internal/domain"
+	"mega-trainer-go/internal/logger"
 	"mega-trainer-go/internal/service"
 )
 
@@ -86,7 +87,7 @@ func (h *Handler) calculateAndShowTDEE(ctx context.Context, chatID, userID int64
 		if errors.Is(err, domain.ErrValidation) {
 			return h.sendError(chatID, "Не хватает данных. Начните заново: /tdee")
 		}
-		h.log.Error().Err(err).Msg("tdee calculation failed")
+		h.log.Error().Err(err).Msg(logger.Source(logComponent, "calculateAndShowTDEE") + "не удалось рассчитать суточный расход калорий")
 		return h.sendError(chatID, "Не удалось выполнить расчёт. Начните заново: /tdee")
 	}
 

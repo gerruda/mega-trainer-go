@@ -10,8 +10,12 @@ import (
 	"github.com/rs/zerolog"
 
 	"mega-trainer-go/internal/delivery/telegram"
+	"mega-trainer-go/internal/logger"
 	"mega-trainer-go/internal/monitoring"
 )
+
+// logComponent identifies this package in log messages.
+const logComponent = "bot"
 
 // Bot wires the Telegram API client with the update handler.
 type Bot struct {
@@ -86,7 +90,7 @@ func (b *Bot) process(ctx context.Context, update tgbotapi.Update) {
 		b.log.Error().
 			Err(err).
 			Int("update_id", update.UpdateID).
-			Msg("failed to handle telegram update")
+			Msg(logger.Source(logComponent, "process") + "не удалось обработать обновление Telegram")
 		return
 	}
 

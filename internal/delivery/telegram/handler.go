@@ -12,8 +12,12 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/rs/zerolog"
 
+	"mega-trainer-go/internal/logger"
 	"mega-trainer-go/internal/service"
 )
+
+// logComponent identifies this package in log messages.
+const logComponent = "delivery/telegram"
 
 // Dialog commands. They are used both as Telegram commands and as dialog keys
 // in the FSM state, so a user can always switch the flow by sending a command.
@@ -123,7 +127,7 @@ func (h *Handler) ensureUser(ctx context.Context, from *tgbotapi.User) {
 
 	if _, err := h.users.Ensure(ctx, from.ID, from.UserName, from.FirstName, from.LastName, from.LanguageCode); err != nil {
 		// Persistence problems must not break the calculator itself.
-		h.log.Warn().Err(err).Int64("telegram_id", from.ID).Msg("failed to persist user")
+		h.log.Warn().Err(err).Int64("telegram_id", from.ID).Msg(logger.Source(logComponent, "ensureUser") + "не удалось сохранить пользователя")
 	}
 }
 
@@ -154,7 +158,7 @@ func (h *Handler) handleCommand(ctx context.Context, message *tgbotapi.Message, 
 
 	// Any command abandons the current dialog, so users never get stuck.
 	if state, err := h.state.Get(ctx, userID); err != nil {
-		h.log.Warn().Err(err).Msg("failed to read dialog state before command")
+		h.log.Warn().Err(err).Msg(logger.Source(logComponent, "handleCommand") + "не удалось прочитать состояние диалога перед командой")
 	} else if state != nil {
 		if err := h.state.Finish(ctx, userID); err != nil {
 			return fmt.Errorf("reset dialog state: %w", err)
@@ -189,7 +193,7 @@ func (h *Handler) handleCommand(ctx context.Context, message *tgbotapi.Message, 
 
 func (h *Handler) handleCallback(ctx context.Context, callback *tgbotapi.CallbackQuery, chatID int64) error {
 	if err := h.answerCallback(callback.ID); err != nil {
-		h.log.Debug().Err(err).Msg("failed to answer callback query")
+		h.log.Debug().Err(err).Msg(logger.Source(logComponent, "handleCallback") + "не удалось подтвердить callback-запрос")
 	}
 
 	h.cleanupMessages(chatID)

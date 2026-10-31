@@ -17,7 +17,11 @@ import (
 	"github.com/rs/zerolog"
 
 	"mega-trainer-go/internal/config"
+	"mega-trainer-go/internal/logger"
 )
+
+// logComponent identifies this package in log messages.
+const logComponent = "monitoring"
 
 // Metrics is the single set of application metrics. It is created once in main
 // and passed explicitly to its consumers, so metrics registration cannot panic
@@ -107,10 +111,10 @@ func NewServer(cfg config.MonitoringConfig, log zerolog.Logger, checks ...ReadyC
 func (s *Server) Start() {
 	go func() {
 		if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.log.Error().Err(err).Str("addr", s.srv.Addr).Msg("monitoring server stopped unexpectedly")
+			s.log.Error().Err(err).Str("addr", s.srv.Addr).Msg(logger.Source(logComponent, "Start") + "сервер метрик неожиданно остановился")
 		}
 	}()
-	s.log.Info().Str("addr", s.srv.Addr).Msg("monitoring server started")
+	s.log.Info().Str("addr", s.srv.Addr).Msg(logger.Source(logComponent, "Start") + "сервер метрик запущен")
 }
 
 // Shutdown gracefully stops the server.

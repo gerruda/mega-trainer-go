@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"mega-trainer-go/internal/domain"
+	"mega-trainer-go/internal/logger"
 	"mega-trainer-go/internal/plot"
 )
 
@@ -40,7 +41,7 @@ func (h *Handler) handleMeasureState(ctx context.Context, chatID, userID int64, 
 
 	stored, err := h.measurements.Record(ctx, userID, domain.Measurement{WeightKG: weight})
 	if err != nil {
-		h.log.Error().Err(err).Int64("telegram_id", userID).Msg("failed to record measurement")
+		h.log.Error().Err(err).Int64("telegram_id", userID).Msg(logger.Source(logComponent, "handleMeasureState") + "не удалось сохранить измерение")
 		return h.sendError(chatID, "Не удалось сохранить измерение. Попробуйте позже.")
 	}
 
@@ -61,7 +62,7 @@ func (h *Handler) showWeightChart(ctx context.Context, chatID, userID int64) err
 
 	weights, err := h.measurements.WeightSeries(ctx, userID, chartPoints)
 	if err != nil {
-		h.log.Error().Err(err).Int64("telegram_id", userID).Msg("failed to load weight series")
+		h.log.Error().Err(err).Int64("telegram_id", userID).Msg(logger.Source(logComponent, "showWeightChart") + "не удалось получить ряд весов")
 		return h.sendError(chatID, "Не удалось получить измерения. Попробуйте позже.")
 	}
 
@@ -71,7 +72,7 @@ func (h *Handler) showWeightChart(ctx context.Context, chatID, userID int64) err
 
 	png, err := plot.RenderLineChart(weights)
 	if err != nil {
-		h.log.Error().Err(err).Msg("failed to render weight chart")
+		h.log.Error().Err(err).Msg(logger.Source(logComponent, "showWeightChart") + "не удалось построить график веса")
 		return h.sendError(chatID, "Не удалось построить график. Попробуйте позже.")
 	}
 
@@ -104,7 +105,7 @@ func (h *Handler) showHistory(ctx context.Context, chatID, userID int64) error {
 
 	measurements, err := h.measurements.Recent(ctx, userID, historyRows)
 	if err != nil {
-		h.log.Error().Err(err).Int64("telegram_id", userID).Msg("failed to load measurements")
+		h.log.Error().Err(err).Int64("telegram_id", userID).Msg(logger.Source(logComponent, "showHistory") + "не удалось загрузить измерения")
 		return h.sendError(chatID, "Не удалось получить измерения. Попробуйте позже.")
 	}
 
@@ -135,7 +136,7 @@ func (h *Handler) exportMeasurements(ctx context.Context, chatID, userID int64) 
 
 	measurements, err := h.measurements.Recent(ctx, userID, exportRows)
 	if err != nil {
-		h.log.Error().Err(err).Int64("telegram_id", userID).Msg("failed to load measurements for export")
+		h.log.Error().Err(err).Int64("telegram_id", userID).Msg(logger.Source(logComponent, "exportMeasurements") + "не удалось загрузить измерения для экспорта")
 		return h.sendError(chatID, "Не удалось получить измерения. Попробуйте позже.")
 	}
 
@@ -145,7 +146,7 @@ func (h *Handler) exportMeasurements(ctx context.Context, chatID, userID int64) 
 
 	data, err := measurementsCSV(measurements)
 	if err != nil {
-		h.log.Error().Err(err).Msg("failed to build measurements csv")
+		h.log.Error().Err(err).Msg(logger.Source(logComponent, "exportMeasurements") + "не удалось сформировать CSV-файл")
 		return h.sendError(chatID, "Не удалось подготовить файл. Попробуйте позже.")
 	}
 
@@ -172,7 +173,7 @@ func (h *Handler) recordBodyFatMeasurement(ctx context.Context, userID int64, ca
 	}
 
 	if _, err := h.measurements.Record(ctx, userID, measurement); err != nil {
-		h.log.Warn().Err(err).Int64("telegram_id", userID).Msg("failed to record body fat measurement")
+		h.log.Warn().Err(err).Int64("telegram_id", userID).Msg(logger.Source(logComponent, "recordBodyFatMeasurement") + "не удалось сохранить измерение после расчёта процента жира")
 		return false
 	}
 	return true

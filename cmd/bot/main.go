@@ -14,6 +14,9 @@ import (
 	"mega-trainer-go/internal/logger"
 )
 
+// logComponent identifies this package in log messages.
+const logComponent = "cmd/bot"
+
 // version is injected at build time:
 //
 //	go build -ldflags "-X main.version=v1.2.3" ./cmd/bot
@@ -49,7 +52,7 @@ func run() error {
 	log.Info().
 		Str("version", version).
 		Str("environment", cfg.App.Environment).
-		Msg("starting bot")
+		Msg(logger.Source(logComponent, "main") + "запуск бота")
 
 	return app.Run(ctx, cfg, log)
 }

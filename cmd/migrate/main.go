@@ -15,6 +15,9 @@ import (
 	"mega-trainer-go/migrations"
 )
 
+// logComponent identifies this package in log messages.
+const logComponent = "cmd/migrate"
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "fatal: %v\n", err)
@@ -56,11 +59,11 @@ func run() error {
 			return err
 		}
 		if len(applied) == 0 {
-			log.Info().Msg("no pending migrations")
+			log.Info().Msg(logger.Source(logComponent, "run") + "неприменённых миграций нет")
 			return nil
 		}
 		for _, migration := range applied {
-			log.Info().Str("migration", migration).Msg("migration applied")
+			log.Info().Str("migration", migration).Msg(logger.Source(logComponent, "run") + "миграция применена")
 		}
 		return nil
 
@@ -69,7 +72,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		log.Info().Str("migration", version).Msg("migration rolled back")
+		log.Info().Str("migration", version).Msg(logger.Source(logComponent, "run") + "миграция откачена")
 		return nil
 
 	case "status":
@@ -79,10 +82,10 @@ func run() error {
 		}
 		for _, status := range statuses {
 			if status.Applied {
-				log.Info().Str("migration", status.Version).Msg("applied")
+				log.Info().Str("migration", status.Version).Msg(logger.Source(logComponent, "run") + "миграция применена (статус)")
 				continue
 			}
-			log.Warn().Str("migration", status.Version).Msg("pending")
+			log.Warn().Str("migration", status.Version).Msg(logger.Source(logComponent, "run") + "миграция не применена (статус)")
 		}
 		return nil
 
