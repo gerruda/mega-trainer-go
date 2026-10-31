@@ -103,7 +103,7 @@ go test ./...       # 0 тестов во всех пакетах; internal/serv
 | # | Проблема | Доказательство |
 |---|---|---|
 | P2-1 | README не описывает продукт: начинается с logrotate, нет архитектуры, скриншотов, быстрого старта | `README.md:1-36` |
-| P2-2 | Нет `.github/` (CI, шаблоны PR/issue, CODEOWNERS), нет `LICENSE`, `CONTRIBUTING.md`, `Makefile`, `.dockerignore`, `golangci-lint` конфига | отсутствуют |
+| P2-2 | Нет `.github/` (CI, шаблоны PR/issue, CODEOWNERS), лицензии, `Makefile`, `.dockerignore`, `golangci-lint` конфига | отсутствуют |
 | P2-3 | Нет тестовой инфраструктуры (моки, фикстуры, `testcontainers`/`miniredis`) | `find . -name '*_test.go'` — пусто |
 | P2-4 | `.gitignore` не покрывает реальные артефакты | `.gitignore:1-3`: `/*.env` не ловит `docker/.env`, `configs/*.yaml` игнорируется целиком (нельзя закоммитить example), нет `*.out`, `coverage`, `.gocache` |
 | P2-5 | Docker: root-пользователь, нет `HEALTHCHECK`, нет `-trimpath -ldflags`, нет кэширования слоёв `go mod download` | `docker/Dockerfile.bot:1-16` |
@@ -204,7 +204,7 @@ go test ./...       # 0 тестов во всех пакетах; internal/serv
 | 3.3 | `docs/TESTING.md` + `docs/TEST_PLAN.md`: матрица тест-кейсов, границы, негативные сценарии (используем QA-бэкграунд как преимущество) | сильный аргумент на собеседовании |
 | 3.4 | Наблюдаемость: `/healthz`, `/readyz`, рабочие Prometheus-метрики (один набор), структурные логи с `request_id`, graceful shutdown | production-ready |
 | 3.5 | Покрытие ≥ 60 % `internal/service` и `internal/domain`, бейдж покрытия | доверие ревьюера |
-| 3.6 | `LICENSE` (MIT), `CONTRIBUTING.md`, шаблон PR, `CODEOWNERS`, dependabot | гигиена OSS |
+| 3.6 | `LICENSE` (MIT), шаблон PR, `CODEOWNERS`, dependabot | гигиена OSS |
 | 3.7 | Прод-деплой: актуальный systemd-юнит (или `docker compose` + Traefik/nginx), `docs/DEPLOY.md` | закрывает P2-6/12 |
 | 3.8 | Теги/релизы (`v0.1.0`), семантическое версионирование, `CHANGELOG.md` | зрелость проекта |
 
@@ -244,7 +244,7 @@ go test ./...       # 0 тестов во всех пакетах; internal/serv
 
 11. **Разбить текущую историю на осмысленные PR.** Даже если код уже написан, лучше провести его через 8–10 маленьких PR с Conventional Commits: ревьюер увидит процесс, а не «свалил 3 000 строк».
 12. **Вести `docs/TEST_PLAN.md`** — ваш QA-опыт должен быть виден: граничные значения (reps=1, повтор 10, вес 0.1), негативные кейсы (текст вместо числа, `/chart` без данных), регрессия формул.
-13. **Зафиксировать Definition of Done** в `AGENTS.md` (уже сделано) и следовать ему в каждом PR.
+13. **Зафиксировать Definition of Done** в локальных инструкциях для агентов (вне репозитория) и следовать ему в каждом PR.
 14. **Скриншоты в README**: диалог бота + пример графика. Для HR это сильнее любого описания.
 15. **Roadmap-чекбоксы в README**: закрытые пункты плана демонстрируют прогресс и дисциплину.
 
@@ -421,7 +421,7 @@ go test -race ./...   OK
 
 ### Фаза 3
 
-- `LICENSE` (MIT), `CONTRIBUTING.md`.
+- `LICENSE` (MIT).
 - `docs/ARCHITECTURE.md` — слои, mermaid-диаграммы потока update и схемы БД,
   таблица зависимостей пакетов, сознательные ограничения.
 - `docs/OPERATIONS.md` — режимы запуска, миграции, напоминания, бэкап/восстановление,
@@ -500,4 +500,4 @@ go test -tags=e2e (fake Bot API + PG + RD) OK, 6 сценариев, graceful sh
 ---
 
 _Документ поддерживается в актуальном состоянии: при закрытии задач фазы отмечайте
-прогресс в README/Roadmap, а правила работы — в [`AGENTS.md`](../AGENTS.md)._
+прогресс в README/Roadmap._

@@ -25,3 +25,7 @@ coverage.*
 
 # Local editor/agent scratch data
 .continue/
+
+# Локальные инструкции для агентов (не публикуются)
+AGENTS.md
+CONTRIBUTING.md

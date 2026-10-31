@@ -186,8 +186,6 @@ Docker-образ собирается из `golang:${GO_VERSION}-alpine`, гд�
 | [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) | план тестирования и матрица кейсов |
 | [`docs/AUDIT_AND_PLAN.md`](docs/AUDIT_AND_PLAN.md) | аудит, приоритеты, дорожная карта |
 | [`docs/adr/`](docs/adr/0001-single-calculator.md) | Architecture Decision Records |
-| [`AGENTS.md`](AGENTS.md) | правила разработки и работы ИИ-агентов |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | как контрибьютить |
 
 ## Лицензия
 
