@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -26,13 +27,16 @@ const logComponent = "cmd/cron"
 var version = "dev"
 
 func main() {
-	if err := run(); err != nil {
+	once := flag.Bool("once", false, "отправить напоминания один раз и выйти")
+	flag.Parse()
+
+	if err := run(*once); err != nil {
 		fmt.Fprintf(os.Stderr, "fatal: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(once bool) error {
 	cfg, err := config.Load(configPath())
 	if err != nil {
 		return err
@@ -72,6 +76,11 @@ func run() error {
 		log,
 		time.Duration(cfg.Reminders.IntervalHours)*time.Hour,
 	)
+
+	if once {
+		log.Info().Msg(logger.Source(logComponent, "run") + "разовая рассылка напоминаний")
+		return runner.Once(ctx)
+	}
 
 	log.Info().
 		Str("version", version).

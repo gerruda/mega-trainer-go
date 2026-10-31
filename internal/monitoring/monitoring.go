@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,12 +33,44 @@ type Metrics struct {
 	UpdateDuration   prometheus.Histogram
 }
 
+// metricNameAllowed reports whether r is allowed in a Prometheus metric name.
+func metricNameAllowed(r rune, first bool) bool {
+	switch {
+	case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r == '_':
+		return true
+	case r >= '0' && r <= '9':
+		return !first
+	case r == ':' && !first:
+		return true
+	default:
+		return false
+	}
+}
+
+// sanitizeNamespace turns an application name into a valid Prometheus metric
+// namespace: `mega-trainer` becomes `mega_trainer`. Without this the exposed
+// metric names contain characters Prometheus cannot scrape.
+func sanitizeNamespace(name string) string {
+	var builder strings.Builder
+	for i, r := range name {
+		if metricNameAllowed(r, i == 0) {
+			builder.WriteRune(r)
+			continue
+		}
+		builder.WriteByte('_')
+	}
+
+	sanitized := builder.String()
+	if sanitized == "" {
+		return "mega_trainer"
+	}
+	return sanitized
+}
+
 // NewMetrics creates and registers the application metrics on the default
 // Prometheus registry, which is served by the /metrics endpoint.
-func NewMetrics(namespace string) *Metrics {
-	if namespace == "" {
-		namespace = "mega_trainer"
-	}
+func NewMetrics(name string) *Metrics {
+	namespace := sanitizeNamespace(name)
 
 	metrics := &Metrics{
 		UpdatesProcessed: prometheus.NewCounter(prometheus.CounterOpts{

@@ -69,6 +69,9 @@ cp .env.example .env          # впишите BOT_TOKEN
 make docker-up                # postgres → migrate → bot
 ```
 
+Подробная пошаговая инструкция с чек-листом проверки в реальном Telegram —
+[`docs/LOCAL_RUN.md`](docs/LOCAL_RUN.md).
+
 Проверка состояния:
 
 ```bash
@@ -178,6 +181,7 @@ Docker-образ собирается из `golang:${GO_VERSION}-alpine`, гд�
 | Документ | О чём |
 |---|---|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | слои, потоки данных, схема БД, принятые решения |
+| [`docs/LOCAL_RUN.md`](docs/LOCAL_RUN.md) | пошаговый локальный запуск и проверка в Telegram |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | запуск, миграции, напоминания, бэкапы, troubleshooting |
 | [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) | план тестирования и матрица кейсов |
 | [`docs/AUDIT_AND_PLAN.md`](docs/AUDIT_AND_PLAN.md) | аудит, приоритеты, дорожная карта |

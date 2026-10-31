@@ -57,6 +57,10 @@ fmt: ## Format the code
 run-cron: build ## Run the reminder scheduler locally
 	./$(BIN_DIR)/cron
 
+.PHONY: remind-once
+remind-once: build ## Send reminders once and exit (local check of the scheduler)
+	./$(BIN_DIR)/cron -once
+
 .PHONY: backup
 backup: ## Dump the Docker Compose PostgreSQL database to ./backups
 	./scripts/backup.sh
